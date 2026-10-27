@@ -25,10 +25,10 @@ const config: Config = {
         hand: ['var(--font-hand)', 'cursive'],
         // Site-wide type system (everything outside the hero): Departure
         // Mono for headers, Fraunces italic reserved for highlighting a
-        // specific meaning within them, Helvetica Neue for body copy.
+        // specific meaning within them, Manrope for body copy.
         pixel: ['var(--font-pixel)', 'ui-monospace', 'monospace'],
         fraunces: ['var(--font-fraunces)', 'Georgia', 'serif'],
-        body: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+        body: ['var(--font-manrope)', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
       },
       maxWidth: {
         content: '760px',

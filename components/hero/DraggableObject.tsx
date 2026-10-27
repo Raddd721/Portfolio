@@ -35,6 +35,8 @@ type DraggableObjectProps = {
    * finger) — a small grip under it does instead.
    */
   handle?: boolean
+  /** with `handle`: a caption under the object that is also what you grab to drag it (replaces the plain grip bar) */
+  label?: string
   /** drives the idle-drift phase; defaults to a hash of left/top, which flow items (all at 0,0) must override */
   seed?: number
   /** resting tilt, degrees */
@@ -77,6 +79,7 @@ export default function DraggableObject({
   width = 100,
   layout = 'absolute',
   handle = false,
+  label,
   seed: seedProp,
   rotate = 0,
   z = 1,
@@ -229,11 +232,15 @@ export default function DraggableObject({
               type="button"
               aria-label={ariaLabel ? `Drag: ${ariaLabel}` : 'Drag'}
               onPointerDown={(e) => dragControls.start(e)}
-              className={`mt-1 flex h-7 w-16 touch-none items-center justify-center rounded-full ${
+              className={`mt-1 flex h-7 touch-none items-center justify-center ${label ? 'w-max px-1' : 'w-16 rounded-full'} ${
                 dragging ? 'cursor-grabbing' : 'cursor-grab'
               }`}
             >
-              <span className="h-[5px] w-9 rounded-full bg-[#8a7a68]" />
+              {label ? (
+                <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-[#8a7a68]">{label}</span>
+              ) : (
+                <span className="h-[5px] w-9 rounded-full bg-[#8a7a68]" />
+              )}
             </button>
           </motion.div>
         )}

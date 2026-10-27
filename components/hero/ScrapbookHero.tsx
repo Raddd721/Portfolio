@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Nav from '../Nav'
 import useScaleToFit from './useScaleToFit'
 import DraggableObject from './DraggableObject'
@@ -40,13 +40,13 @@ const LAMP_POS_DESKTOP = { left: 86 + 13.5 / 2, top: 22 + 13.5 / 2 }
 // dragged by a grip underneath it (see DraggableObject `handle`) instead of
 // by its body — a finger on the object itself scrolls the row / page.
 const MOBILE_LAMP_WIDTH = 84
-const MOBILE_ROW: { id: string; width: number; rotate: number }[] = [
-  { id: 'journal', width: 168, rotate: 3 },
-  { id: 'stamps', width: 72, rotate: 0 },
-  { id: 'mug', width: 100, rotate: 6 },
-  { id: 'flower-book', width: 112, rotate: -3 },
-  { id: 'books', width: 106, rotate: 6 },
-  { id: 'vinyl', width: 104, rotate: -6 },
+const MOBILE_ROW: { id: string; width: number; rotate: number; label: string }[] = [
+  { id: 'journal', width: 168, rotate: 3, label: 'My Asian trip' },
+  { id: 'stamps', width: 72, rotate: 0, label: 'Souvenirs' },
+  { id: 'vinyl', width: 104, rotate: -6, label: 'Laufey on loop' },
+  { id: 'flower-book', width: 112, rotate: -3, label: 'Margin doodler' },
+  { id: 'books', width: 106, rotate: 6, label: 'Psych nerd' },
+  { id: 'mug', width: 100, rotate: 6, label: 'Tea, always' },
 ]
 const mobileLamp = scrapbookItems.find((i) => i.id === 'lamp')!
 const mobileRowItems = MOBILE_ROW.map((r) => ({
@@ -61,7 +61,6 @@ const DESKTOP_PEEK = 120
 
 export default function ScrapbookHero() {
   const desktopBoundsRef = useRef<HTMLDivElement>(null!)
-  const mobileLampZoneRef = useRef<HTMLDivElement>(null!)
   const mobileRowRef = useRef<HTMLDivElement>(null!)
   const [lampOn, setLampOn] = useState(false)
   const toggleLamp = () => setLampOn((v) => !v)
@@ -146,19 +145,9 @@ export default function ScrapbookHero() {
       <div className="relative pb-5 pt-24 sm:hidden">
         <LampVignette on={lampOn} left={50} top={24} />
 
-        {/* Lamp zone: the lamp stays up here and can be slid side to side */}
-        <div ref={mobileLampZoneRef} className="relative z-10 flex h-[104px] w-full items-start justify-center">
-          <DraggableObject
-            layout="flow"
-            handle
-            seed={7}
-            boundsRef={mobileLampZoneRef}
-            z={6}
-            lampIntensity={0}
-            resetSignal={resetSignal}
-            ariaLabel={mobileLamp.alt}
-            style={{ width: MOBILE_LAMP_WIDTH }}
-          >
+        {/* The lamp stays up here — fixed in place, just a light switch (no drag grip) */}
+        <div className="relative z-10 flex h-[108px] w-full items-start justify-center">
+          <div style={{ width: MOBILE_LAMP_WIDTH }}>
             <HeroObjectImage
               item={mobileLamp}
               lampOn={lampOn}
@@ -167,19 +156,20 @@ export default function ScrapbookHero() {
               priority
               lampEffects={LAMP_EFFECTS_MOBILE}
             />
-          </DraggableObject>
+          </div>
         </div>
 
         <HeadlineBlock mobile />
 
         {/* The row — swipe it sideways; grab the grip under an object to move that object */}
-        <div className="relative z-10 mt-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="relative z-10 mt-7 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div ref={mobileRowRef} className="flex w-max items-end gap-5 px-6 pb-1 pt-4">
-            {mobileRowItems.map(({ id, width, rotate, item }, i) => (
+            {mobileRowItems.map(({ id, width, rotate, label, item }, i) => (
               <DraggableObject
                 key={id}
                 layout="flow"
                 handle
+                label={label}
                 seed={11 * (i + 2)}
                 boundsRef={mobileRowRef}
                 rotate={rotate}
@@ -353,15 +343,26 @@ function heroScaleStyle(widthPct: number) {
   }
 }
 
+/**
+ * The graph-paper grid behind the hero. Its cell size and offset come from CSS
+ * variables that `useHeadlineGrid` (below) sets from the headline's own
+ * measurements, so the headline reads as written *on* the grid: each cell is
+ * two characters wide and one line tall, a horizontal line runs under every
+ * line of text, and the vertical lines fall between letters instead of
+ * through them. It fades in once those measurements exist, so it never
+ * shows up misaligned first.
+ */
 function GridBackground() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0"
+      className="pointer-events-none absolute inset-0 transition-opacity duration-500"
       style={{
+        opacity: 'var(--grid-opacity, 0)',
         backgroundImage:
           'linear-gradient(to right, #e3dfd1 1px, transparent 1px), linear-gradient(to bottom, #e3dfd1 1px, transparent 1px)',
-        backgroundSize: '72px 72px',
+        backgroundSize: 'var(--grid-u, 72px) var(--grid-u, 72px)',
+        backgroundPosition: 'var(--grid-x, 0px) var(--grid-y, 0px)',
       }}
     />
   )
@@ -383,52 +384,155 @@ function PaperCorner() {
   )
 }
 
+/** Zero-size marker sitting on the text baseline — read back to find where the baseline really is. */
+function Baseline() {
+  return <span aria-hidden data-hl-baseline className="inline-block h-0 w-0 align-baseline" />
+}
+
+const mod = (n: number, m: number) => ((n % m) + m) % m
+
+/**
+ * Aligns the hero grid to the headline. The headline is set in a monospaced
+ * face, so one "cell" is two characters wide and one line tall (square). We
+ * measure the real character advance and baselines, then:
+ *  - make every headline line exactly one cell tall (--hl-lh),
+ *  - nudge the tagline a few px so its baseline lands on a grid line too,
+ *  - hand the section a grid size/offset that puts a horizontal line under
+ *    each line of text and the vertical lines between letters.
+ * Everything is measured in rendered pixels, so it stays aligned through the
+ * desktop composition's scale-to-fit and at any viewport width.
+ */
+function useHeadlineGrid(rootRef: React.RefObject<HTMLDivElement>) {
+  useEffect(() => {
+    const root = rootRef.current
+    const section = root?.closest('section')
+    if (!root || !section) return
+
+    let raf = 0
+    let settlePasses = 0
+    const schedule = () => {
+      cancelAnimationFrame(raf)
+      // two frames: lets scale-to-fit commit before we read positions
+      raf = requestAnimationFrame(() => (raf = requestAnimationFrame(measure)))
+    }
+
+    const measure = () => {
+      const rootRect = root.getBoundingClientRect()
+      if (rootRect.width === 0) return // the hidden desktop/mobile twin
+
+      const lines = root.querySelectorAll<HTMLElement>('[data-hl-text]')
+      const marks = root.querySelectorAll<HTMLElement>('[data-hl-baseline]')
+      const tag = root.querySelector<HTMLElement>('[data-hl-tagline]')
+      if (lines.length < 2 || marks.length < 3 || !tag) return
+
+      const longest = lines[1]
+      const rendered = longest.getBoundingClientRect().width
+      if (!rendered || !longest.offsetWidth) return
+      const scale = rendered / longest.offsetWidth
+      const adv = rendered / (longest.textContent?.length || 1) // one character, rendered px
+      const u = 2 * adv // one grid cell, rendered px
+
+      // every headline line = exactly one cell tall
+      root.style.setProperty('--hl-lh', `${u / scale}px`)
+      void root.offsetHeight // apply the new line-height before reading baselines
+
+      const sectionRect = section.getBoundingClientRect()
+      const y1 = marks[0].getBoundingClientRect().top - sectionRect.top
+      // Take the tagline's baseline as if it had no nudge: subtract the shift
+      // applied last time (stored in rendered px) rather than resetting it,
+      // so we never depend on a style change being flushed mid-measure.
+      const applied = Number(tag.dataset.hlShift || 0)
+      const y3 = marks[2].getBoundingClientRect().top - sectionRect.top - applied
+      const r = mod(y3 - y1, u)
+      const shift = r > u / 2 ? u - r : -r
+      tag.dataset.hlShift = String(shift)
+      tag.style.translate = `0 ${shift / scale}px`
+      // A resize can change the scale and line height in the same pass; if the
+      // nudge moved, measure once more on the next frames until it settles.
+      if (Math.abs(shift - applied) > 0.05 && settlePasses++ < 4) schedule()
+      else settlePasses = 0
+
+      const left = longest.getBoundingClientRect().left - sectionRect.left
+      section.style.setProperty('--grid-u', `${u}px`)
+      section.style.setProperty('--grid-x', `${mod(left, u)}px`)
+      section.style.setProperty('--grid-y', `${mod(y1, u)}px`)
+      section.style.setProperty('--grid-opacity', '1')
+    }
+
+    schedule()
+    const timers = [setTimeout(schedule, 300), setTimeout(schedule, 1200), setTimeout(schedule, 2500)]
+    window.addEventListener('resize', schedule)
+    const ro = new ResizeObserver(schedule)
+    ro.observe(root)
+    void document.fonts?.ready.then(schedule)
+    document.fonts?.addEventListener?.('loadingdone', schedule)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      timers.forEach(clearTimeout)
+      window.removeEventListener('resize', schedule)
+      ro.disconnect()
+      document.fonts?.removeEventListener?.('loadingdone', schedule)
+    }
+  }, [rootRef])
+}
+
 function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  useHeadlineGrid(rootRef)
+
   // Only one of the two responsive variants (desktop/mobile) should be a
   // real <h1> — both render the same headline, so the hidden twin uses a
   // plain <div> with identical styling to avoid a duplicate document heading.
   const HeadingTag = mobile ? 'div' : 'h1'
+  // Both headline lines share one size (and the monospaced face), so a
+  // character is the same width on each and the grid can sit between letters.
+  const lineStyle = {
+    fontSize: mobile ? 'clamp(1.5rem, 7.4vw, 2.3rem)' : 'max(1.5rem, 3.15cqw)',
+    lineHeight: 'var(--hl-lh, 1.2em)',
+  }
   const content = (
     <>
-      <HeadingTag
-        className="text-[#543616]"
-        style={{ fontFamily: 'var(--font-pixel)' }}
-      >
-        <span
-          className="block font-semibold leading-[1.05] tracking-tight"
-          style={mobile ? { fontSize: 'clamp(1.55rem, 7.7vw, 2.4rem)' } : { fontSize: 'max(1.5rem, 3.15cqw)' }}
-        >
-          Hello, I&rsquo;m {site.name.split(' ')[0]},
+      <HeadingTag className="mx-auto block w-max text-left text-[#543616]" style={{ fontFamily: 'var(--font-pixel)' }}>
+        <span className="block whitespace-nowrap" style={lineStyle}>
+          <span data-hl-text>
+            Hello, I&rsquo;m {site.name.split(' ')[0]},
+          </span>
+          <Baseline />
         </span>
-        <span
-          className="mt-2 block tracking-tight"
-          style={{
-            fontFamily: 'var(--font-pixel)',
-            fontSize: mobile ? 'clamp(1.3rem, 6.2vw, 2rem)' : 'max(1.425rem, 2.925cqw)',
-          }}
-        >
-          a Product Designer
+        <span className="block whitespace-nowrap" style={lineStyle}>
+          <span data-hl-text>a Product Designer</span>
+          <Baseline />
         </span>
       </HeadingTag>
       <p
-        className="mx-auto mt-1.5 whitespace-nowrap font-body text-[#77644e]"
+        data-hl-tagline
+        className="mx-auto whitespace-nowrap font-body text-[#77644e]"
         style={
           mobile
-            ? { fontSize: 'clamp(1.05rem, 4.8vw, 1.35rem)', maxWidth: '32ch', whiteSpace: 'normal' }
-            : { fontSize: 'max(0.98rem, 1.6198cqw)' }
+            ? { fontSize: 'clamp(1.05rem, 4.8vw, 1.35rem)', maxWidth: '32ch', whiteSpace: 'normal', lineHeight: 'var(--hl-lh, 1.2em)' }
+            : { fontSize: 'max(0.98rem, 1.6198cqw)', lineHeight: 'var(--hl-lh, 1.2em)' }
         }
       >
         With {site.experienceYears}+ Years of turning &ldquo;ugh&rdquo; moments to &ldquo;Aha&rdquo; moments
+        <Baseline />
       </p>
     </>
   )
 
   if (mobile) {
-    return <div className="pointer-events-none relative z-20 px-6 text-center">{content}</div>
+    return (
+      <div ref={rootRef} className="pointer-events-none relative z-20 px-6 text-center">
+        {content}
+      </div>
+    )
   }
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-[43%] z-10 w-[min(94%,900px)] -translate-x-1/2 text-center">
+    <div
+      ref={rootRef}
+      className="pointer-events-none absolute left-1/2 top-[43%] z-10 w-[min(94%,900px)] -translate-x-1/2 text-center"
+    >
       {content}
     </div>
   )

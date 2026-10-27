@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
-import { Newsreader, JetBrains_Mono, Caveat, Fraunces } from 'next/font/google'
+import { Newsreader, JetBrains_Mono, Caveat, Fraunces, Manrope } from 'next/font/google'
 import './globals.css'
 import { site } from './content'
 
@@ -32,6 +32,14 @@ const fraunces = Fraunces({
   weight: ['500', '600'],
   style: ['italic', 'normal'],
   variable: '--font-fraunces',
+  display: 'swap',
+})
+
+// Body copy / sub-text across the site
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-manrope',
   display: 'swap',
 })
 
@@ -67,7 +75,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${serif.variable} ${mono.variable} ${hand.variable} ${fraunces.variable} ${pixel.variable}`}
+      className={`${serif.variable} ${mono.variable} ${hand.variable} ${fraunces.variable} ${pixel.variable} ${manrope.variable}`}
     >
       <body className="min-h-screen font-body antialiased">{children}</body>
     </html>

@@ -32,7 +32,7 @@ const toneClass: Record<string, string> = {
 /**
  * A long-form case study page — same site-wide type system as everywhere
  * else (Departure Mono headers, Fraunces italic for the meaningful bits,
- * Helvetica Neue body copy), just with its own dark opening.
+ * Manrope body copy), just with its own dark opening.
  */
 export default function GoSocialCaseStudy() {
   return (
