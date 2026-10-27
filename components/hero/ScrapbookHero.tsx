@@ -162,7 +162,7 @@ export default function ScrapbookHero() {
         <HeadlineBlock mobile />
 
         {/* The row — swipe it sideways; grab the grip under an object to move that object */}
-        <div className="relative z-10 mt-7 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="relative z-10 mt-12 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div ref={mobileRowRef} className="flex w-max items-end gap-5 px-6 pb-1 pt-4">
             {mobileRowItems.map(({ id, width, rotate, label, item }, i) => (
               <DraggableObject

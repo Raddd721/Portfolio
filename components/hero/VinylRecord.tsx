@@ -71,11 +71,14 @@ export default function VinylRecord({ src, alt, intrinsicWidth, intrinsicHeight 
     setActive(next)
 
     if (next) {
+      // Start the audio *inside* the tap. Phone browsers only allow sound that
+      // begins during the user's gesture; waiting for the slide-out animation
+      // first (as before) pushed play() outside it, so it stayed silent.
+      controllerRef.current?.play()
       // slide out, settle, then spin steadily until paused
       await animate(scope.current, { x: [0, 16, 6], rotate: [0, -4, 0] }, { duration: 0.55, ease: [0.22, 1, 0.36, 1] })
       spinRef.current?.stop()
       spinRef.current = animate(scope.current, { rotate: 360 }, { duration: 2.8, ease: 'linear', repeat: Infinity })
-      controllerRef.current?.play()
     } else {
       controllerRef.current?.pause()
       spinRef.current?.stop()
