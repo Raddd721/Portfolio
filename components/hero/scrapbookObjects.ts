@@ -115,7 +115,7 @@ export type StampPiece = {
 // they move together as a single scrap, matching the source collage.
 export const stampGroup: { id: string; left: number; top: number; width: number; z: number; pieces: StampPiece[] } = {
   id: 'stamps',
-  left: 12,
+  left: 8.3, // was 12 — 64px left on the 1728px-wide design
   top: 40,
   width: 10.5,
   z: 3,

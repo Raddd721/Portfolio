@@ -493,7 +493,7 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
   }
   const content = (
     <>
-      <HeadingTag className="mx-auto block w-max text-left text-[#543616]" style={{ fontFamily: 'var(--font-pixel)' }}>
+      <HeadingTag className="mx-auto block w-max text-center text-[#543616]" style={{ fontFamily: 'var(--font-pixel)' }}>
         <span className="block whitespace-nowrap" style={lineStyle}>
           <span data-hl-text>
             Hello, I&rsquo;m {site.name.split(' ')[0]},
@@ -514,7 +514,7 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
             : { fontSize: 'max(0.98rem, 1.6198cqw)', lineHeight: 'var(--hl-lh, 1.2em)' }
         }
       >
-        With {site.experienceYears}+ Years of turning &ldquo;ugh&rdquo; moments to &ldquo;Aha&rdquo; moments
+        With {site.experienceYears}+ years of turning &ldquo;UGH&rdquo; moments to &ldquo;AHA&rdquo; moments
         <Baseline />
       </p>
     </>
