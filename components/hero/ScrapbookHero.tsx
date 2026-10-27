@@ -163,7 +163,7 @@ export default function ScrapbookHero() {
 
         {/* The row — swipe it sideways; grab the grip under an object to move that object */}
         <div className="relative z-10 mt-12 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div ref={mobileRowRef} className="flex w-max items-end gap-5 px-6 pb-1 pt-4">
+          <div ref={mobileRowRef} className="flex w-max items-end gap-8 px-6 pb-1 pt-4">
             {mobileRowItems.map(({ id, width, rotate, label, item }, i) => (
               <DraggableObject
                 key={id}
@@ -490,13 +490,23 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
   const lineStyle = {
     fontSize: mobile ? 'clamp(1.5rem, 7.4vw, 2.3rem)' : 'max(1.5rem, 3.15cqw)',
     lineHeight: 'var(--hl-lh, 1.2em)',
+    // The grid is sized from the measured character advance, so tracking can
+    // change freely without knocking it out of alignment.
+    letterSpacing: '-2px',
   }
   const content = (
     <>
       <HeadingTag className="mx-auto block w-max text-center text-[#543616]" style={{ fontFamily: 'var(--font-pixel)' }}>
         <span className="block whitespace-nowrap" style={lineStyle}>
           <span data-hl-text>
-            Hello, I&rsquo;m {site.name.split(' ')[0]},
+            Hello,{' '}
+            {/* Departure Mono has one weight and no italic, so the browser slants the letters
+                and the "semibold" is a light text-stroke; neither changes character widths,
+                which keeps the grid aligned. */}
+            <span className="italic [-webkit-text-stroke:0.025em_currentColor]">
+              I&rsquo;m {site.name.split(' ')[0]}
+            </span>
+            ,
           </span>
           <Baseline />
         </span>
@@ -510,8 +520,13 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
         className="mx-auto whitespace-nowrap font-body text-[#77644e]"
         style={
           mobile
-            ? { fontSize: 'clamp(1.05rem, 4.8vw, 1.35rem)', maxWidth: '32ch', whiteSpace: 'normal', lineHeight: 'var(--hl-lh, 1.2em)' }
-            : { fontSize: 'max(0.98rem, 1.6198cqw)', lineHeight: 'var(--hl-lh, 1.2em)' }
+            ? {
+                fontSize: 'clamp(calc(1.05rem - 2px), calc(4.8vw - 2px), calc(1.35rem - 2px))',
+                maxWidth: '32ch',
+                whiteSpace: 'normal',
+                lineHeight: 'var(--hl-lh, 1.2em)',
+              }
+            : { fontSize: 'max(calc(0.98rem - 2px), calc(1.6198cqw - 2px))', lineHeight: 'var(--hl-lh, 1.2em)' }
         }
       >
         With {site.experienceYears}+ years of turning &ldquo;UGH&rdquo; moments to &ldquo;AHA&rdquo; moments
