@@ -25,54 +25,51 @@ const LAMP_EFFECTS_DESKTOP: Record<string, LampEffect> = {
   mug: { direction: 'to top right', intensity: 0.88 },
   journal: { direction: 'to right', intensity: 0.36 },
 }
+// On mobile the lamp sits above the row, so the lit edge is the top one.
 const LAMP_EFFECTS_MOBILE: Record<string, LampEffect> = {
-  mug: { direction: 'to left', intensity: 1 },
-  journal: { direction: 'to left', intensity: 0.56 },
+  mug: { direction: 'to top', intensity: 0.7 },
+  journal: { direction: 'to top', intensity: 0.5 },
 }
 
 // Where the lamp sits, for the background vignette below — kept in sync
-// with the lamp's own entry in scrapbookObjects.ts / mobilePositions.
+// with the lamp's own entry in scrapbookObjects.ts.
 const LAMP_POS_DESKTOP = { left: 86 + 13.5 / 2, top: 22 + 13.5 / 2 }
-const LAMP_POS_MOBILE = { left: 2.8 + 26.4 / 2, top: 5 + 26.4 / 2 }
 
-// Mobile recomposes the same pieces into a loose scatter beneath the
-// headline instead of the wide desktop spread — same objects, same tactile
-// drag, just laid out in stacked rows sized to a narrow viewport.
-const mobilePositions: Record<string, { left: number; top: number; width: number; rotate: number }> = {
-  journal: { left: 33, top: 1, width: 64, rotate: 4 },
-  lamp: { left: 2.8, top: 5, width: 26.4, rotate: 0 },
-  mug: { left: 2, top: 64, width: 18, rotate: 8 },
-  stamps: { left: 72, top: 65, width: 24, rotate: 0 },
-  'flower-book': { left: 2, top: 80, width: 36, rotate: -3 },
-  books: { left: 42, top: 65, width: 26, rotate: 8 },
-  vinyl: { left: 40, top: 96, width: 34, rotate: -8 },
-}
-
-const mobileItems = scrapbookItems.map((item) => ({ ...item, ...mobilePositions[item.id] }))
-const mobileStamps = { ...stampGroup, ...mobilePositions.stamps }
+// Mobile: the lamp stays on top, everything else lines up in one horizontal
+// row beneath the headline. The row scrolls sideways, so each object is
+// dragged by a grip underneath it (see DraggableObject `handle`) instead of
+// by its body — a finger on the object itself scrolls the row / page.
+const MOBILE_LAMP_WIDTH = 84
+const MOBILE_ROW: { id: string; width: number; rotate: number }[] = [
+  { id: 'journal', width: 168, rotate: 3 },
+  { id: 'stamps', width: 72, rotate: 0 },
+  { id: 'mug', width: 100, rotate: 6 },
+  { id: 'flower-book', width: 112, rotate: -3 },
+  { id: 'books', width: 106, rotate: 6 },
+  { id: 'vinyl', width: 104, rotate: -6 },
+]
+const mobileLamp = scrapbookItems.find((i) => i.id === 'lamp')!
+const mobileRowItems = MOBILE_ROW.map((r) => ({
+  ...r,
+  item: scrapbookItems.find((i) => i.id === r.id),
+}))
 
 // Leaves a little room below the hero — on short/wide viewports (laptop,
 // desktop) — so the Case Studies heading peeks into view without scrolling,
 // instead of the hero's fixed 1728:1117 composition running past the fold.
 const DESKTOP_PEEK = 120
-const MOBILE_PEEK = 130
-// Fixed, unscaled space reserved above the mobile composition so the fixed
-// nav pill (bottom edge ~72px) never overlaps the headline once the content
-// below it is scaled down to fit.
-const MOBILE_NAV_CLEARANCE = 96
 
 export default function ScrapbookHero() {
   const desktopBoundsRef = useRef<HTMLDivElement>(null!)
-  const mobileBoundsRef = useRef<HTMLDivElement>(null!)
+  const mobileLampZoneRef = useRef<HTMLDivElement>(null!)
+  const mobileRowRef = useRef<HTMLDivElement>(null!)
   const [lampOn, setLampOn] = useState(false)
   const toggleLamp = () => setLampOn((v) => !v)
   const [resetSignal, setResetSignal] = useState(0)
   const tidyUp = () => setResetSignal((n) => n + 1)
 
   const desktopMaxHeight = useCallback(() => window.innerHeight - DESKTOP_PEEK, [])
-  const mobileMaxHeight = useCallback(() => window.innerHeight - MOBILE_PEEK - MOBILE_NAV_CLEARANCE, [])
   const desktopFit = useScaleToFit(desktopMaxHeight)
-  const mobileFit = useScaleToFit(mobileMaxHeight)
 
   return (
     <section className="relative overflow-hidden bg-[#f3f0e7]">
@@ -145,67 +142,72 @@ export default function ScrapbookHero() {
         </div>
       </div>
 
-      {/* ── Mobile recomposition — scaled to fit the viewport height ── */}
-      <div
-        className="overflow-hidden pt-24 sm:hidden"
-        style={mobileFit.height !== null ? { height: MOBILE_NAV_CLEARANCE + mobileFit.height } : undefined}
-      >
-        <div
-          ref={(node) => {
-            ;(mobileFit.ref as React.MutableRefObject<HTMLDivElement | null>).current = node
-          }}
-          className="relative px-6 pb-6"
-          style={{
-            // Widen before scaling down, so the uniform transform (needed to
-            // shrink objects without distorting them) lands back at exactly
-            // 100% width — mobile should stay edge-to-edge, only shorter. The
-            // nav-clearance padding above stays outside this transform so it
-            // isn't shrunk along with the composition.
-            width: `${100 / mobileFit.scale}%`,
-            transform: `scale(${mobileFit.scale})`,
-            transformOrigin: 'top left',
-          }}
-        >
-          <div ref={mobileBoundsRef} className="relative h-[790px] w-full">
-            <LampVignette on={lampOn} left={LAMP_POS_MOBILE.left} top={LAMP_POS_MOBILE.top} />
-            <HeadlineBlock mobile />
-          {mobileItems.map((item) => (
-            <DraggableObject
-              key={item.id}
-              boundsRef={mobileBoundsRef}
-              left={item.left}
-              top={item.top}
-              width={item.width}
-              rotate={item.rotate}
-              lampIntensity={lampOn ? (LAMP_EFFECTS_MOBILE[item.id]?.intensity ?? 0) : 0}
-              resetSignal={resetSignal}
-              ariaLabel={item.alt}
-            >
-              <HeroObjectImage
-                item={item}
-                lampOn={lampOn}
-                onToggleLamp={toggleLamp}
-                sizes="40vw"
-                priority={item.id === 'lamp' || item.id === 'journal'}
-                lampEffects={LAMP_EFFECTS_MOBILE}
-              />
-            </DraggableObject>
-          ))}
+      {/* ── Mobile recomposition — lamp on top, headline, then one horizontal row of objects ── */}
+      <div className="relative pb-5 pt-24 sm:hidden">
+        <LampVignette on={lampOn} left={50} top={24} />
 
+        {/* Lamp zone: the lamp stays up here and can be slid side to side */}
+        <div ref={mobileLampZoneRef} className="relative z-10 flex h-[104px] w-full items-start justify-center">
           <DraggableObject
-            boundsRef={mobileBoundsRef}
-            left={mobileStamps.left}
-            top={mobileStamps.top}
-            width={mobileStamps.width}
+            layout="flow"
+            handle
+            seed={7}
+            boundsRef={mobileLampZoneRef}
+            z={6}
+            lampIntensity={0}
             resetSignal={resetSignal}
-            ariaLabel="Collaged travel stamps"
+            ariaLabel={mobileLamp.alt}
+            style={{ width: MOBILE_LAMP_WIDTH }}
           >
-            <StampCollage />
+            <HeroObjectImage
+              item={mobileLamp}
+              lampOn={lampOn}
+              onToggleLamp={toggleLamp}
+              sizes="30vw"
+              priority
+              lampEffects={LAMP_EFFECTS_MOBILE}
+            />
           </DraggableObject>
+        </div>
+
+        <HeadlineBlock mobile />
+
+        {/* The row — swipe it sideways; grab the grip under an object to move that object */}
+        <div className="relative z-10 mt-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div ref={mobileRowRef} className="flex w-max items-end gap-5 px-6 pb-1 pt-4">
+            {mobileRowItems.map(({ id, width, rotate, item }, i) => (
+              <DraggableObject
+                key={id}
+                layout="flow"
+                handle
+                seed={11 * (i + 2)}
+                boundsRef={mobileRowRef}
+                rotate={rotate}
+                z={item?.z ?? stampGroup.z}
+                lampIntensity={lampOn ? (LAMP_EFFECTS_MOBILE[id]?.intensity ?? 0) : 0}
+                resetSignal={resetSignal}
+                ariaLabel={item?.alt ?? 'Collaged travel stamps'}
+                style={{ width }}
+              >
+                {item ? (
+                  <HeroObjectImage
+                    item={item}
+                    lampOn={lampOn}
+                    onToggleLamp={toggleLamp}
+                    sizes="40vw"
+                    priority={id === 'journal'}
+                    lampEffects={LAMP_EFFECTS_MOBILE}
+                  />
+                ) : (
+                  <StampCollage />
+                )}
+              </DraggableObject>
+            ))}
           </div>
-          <div className="relative mt-6 flex justify-center">
-            <TidyUpButton onClick={tidyUp} className="static" />
-          </div>
+        </div>
+
+        <div className="relative z-10 mt-1 flex justify-center">
+          <TidyUpButton onClick={tidyUp} className="static" />
         </div>
       </div>
     </section>
@@ -394,7 +396,7 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
       >
         <span
           className="block font-semibold leading-[1.05] tracking-tight"
-          style={mobile ? { fontSize: 'clamp(2.35rem, 10.5vw, 3.1rem)' } : { fontSize: 'max(1.5rem, 3.15cqw)' }}
+          style={mobile ? { fontSize: 'clamp(1.55rem, 7.7vw, 2.4rem)' } : { fontSize: 'max(1.5rem, 3.15cqw)' }}
         >
           Hello, I&rsquo;m {site.name.split(' ')[0]},
         </span>
@@ -402,17 +404,17 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
           className="mt-2 block tracking-tight"
           style={{
             fontFamily: 'var(--font-pixel)',
-            fontSize: mobile ? 'clamp(2.05rem, 9.3vw, 2.8rem)' : 'max(1.425rem, 2.925cqw)',
+            fontSize: mobile ? 'clamp(1.3rem, 6.2vw, 2rem)' : 'max(1.425rem, 2.925cqw)',
           }}
         >
-          a Sr.<span style={{ marginLeft: '-0.3em' }}> Product Designer</span>
+          a Product Designer
         </span>
       </HeadingTag>
       <p
         className="mx-auto mt-1.5 whitespace-nowrap font-body text-[#77644e]"
         style={
           mobile
-            ? { fontSize: 'clamp(1.5rem, 6.7vw, 1.68rem)', maxWidth: '30ch', whiteSpace: 'normal' }
+            ? { fontSize: 'clamp(1.05rem, 4.8vw, 1.35rem)', maxWidth: '32ch', whiteSpace: 'normal' }
             : { fontSize: 'max(0.98rem, 1.6198cqw)' }
         }
       >
@@ -422,11 +424,7 @@ function HeadlineBlock({ mobile = false }: { mobile?: boolean }) {
   )
 
   if (mobile) {
-    return (
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 w-full -translate-x-1/2 -translate-y-1/2 text-center">
-        {content}
-      </div>
-    )
+    return <div className="pointer-events-none relative z-20 px-6 text-center">{content}</div>
   }
 
   return (

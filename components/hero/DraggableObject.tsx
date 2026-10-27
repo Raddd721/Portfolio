@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import { motion, useAnimationFrame, useMotionValue, useTransform, animate } from 'motion/react'
+import { motion, useAnimationFrame, useDragControls, useMotionValue, useTransform, animate } from 'motion/react'
 
 // Shared counter so whichever object was grabbed most recently renders above
 // its neighbours, even after everyone has been dropped and re-grabbed.
@@ -21,12 +21,22 @@ const HOVER_SPRING = { type: 'spring', stiffness: 320, damping: 34, mass: 0.7 } 
 type DraggableObjectProps = {
   children: ReactNode
   boundsRef: RefObject<HTMLElement>
-  /** left edge, % of the bounds container */
-  left: number
-  /** top edge, % of the bounds container */
-  top: number
-  /** width, % of the bounds container */
-  width: number
+  /** left edge, % of the bounds container (ignored when `layout="flow"`) */
+  left?: number
+  /** top edge, % of the bounds container (ignored when `layout="flow"`) */
+  top?: number
+  /** width, % of the bounds container (ignored when `layout="flow"` — size it via `style` instead) */
+  width?: number
+  /** `absolute` (default) positions by %; `flow` sits in normal layout, e.g. inside a flex row */
+  layout?: 'absolute' | 'flow'
+  /**
+   * Touch-friendly mode: the object itself no longer starts a drag (so the
+   * page and any scrolling row it sits in can scroll normally under a
+   * finger) — a small grip under it does instead.
+   */
+  handle?: boolean
+  /** drives the idle-drift phase; defaults to a hash of left/top, which flow items (all at 0,0) must override */
+  seed?: number
   /** resting tilt, degrees */
   rotate?: number
   /** stacking order before the item has ever been picked up */
@@ -62,9 +72,12 @@ function hash(seed: number) {
 export default function DraggableObject({
   children,
   boundsRef,
-  left,
-  top,
-  width,
+  left = 0,
+  top = 0,
+  width = 100,
+  layout = 'absolute',
+  handle = false,
+  seed: seedProp,
   rotate = 0,
   z = 1,
   lampIntensity = 0,
@@ -88,7 +101,7 @@ export default function DraggableObject({
 
   // Each object gets its own drift frequencies/phases/amplitudes, seeded off
   // its own position so two objects never move in lockstep.
-  const seed = left * 97.13 + top * 13.37
+  const seed = seedProp ?? left * 97.13 + top * 13.37
   const drift = useMemo(
     () => ({
       f1: 0.15 + hash(seed + 1) * 0.1, // ~ one cycle every 8–12s
@@ -116,6 +129,9 @@ export default function DraggableObject({
   const tilt = useMotionValue(0)
   const hoverTilt = useMotionValue(0)
   const combinedRotate = useTransform([tilt, hoverTilt], (latest) => rotate + (latest as number[])[0] + (latest as number[])[1])
+  // The grip stays level even though the object tilts.
+  const handleRotate = useTransform(combinedRotate, (v) => -v)
+  const dragControls = useDragControls()
 
   useAnimationFrame((elapsed) => {
     const t = elapsed / 1000
@@ -147,11 +163,11 @@ export default function DraggableObject({
     <motion.div
       role="group"
       aria-label={ariaLabel}
-      className={`absolute select-none touch-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'} ${className}`}
+      className={`${layout === 'flow' ? 'relative shrink-0' : 'absolute'} select-none ${
+        handle ? '' : `touch-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`
+      } ${className}`}
       style={{
-        left: `${left}%`,
-        top: `${top}%`,
-        width: `${width}%`,
+        ...(layout === 'flow' ? {} : { left: `${left}%`, top: `${top}%`, width: `${width}%` }),
         zIndex: z_,
         x,
         y,
@@ -159,6 +175,8 @@ export default function DraggableObject({
         ...style,
       }}
       drag
+      dragListener={!handle}
+      dragControls={dragControls}
       dragConstraints={boundsRef}
       dragElastic={0.08}
       dragMomentum
@@ -205,6 +223,20 @@ export default function DraggableObject({
         >
           {children}
         </div>
+        {handle && (
+          <motion.div style={{ rotate: handleRotate }} className="flex justify-center">
+            <button
+              type="button"
+              aria-label={ariaLabel ? `Drag: ${ariaLabel}` : 'Drag'}
+              onPointerDown={(e) => dragControls.start(e)}
+              className={`mt-1 flex h-7 w-16 touch-none items-center justify-center rounded-full ${
+                dragging ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
+            >
+              <span className="h-[5px] w-9 rounded-full bg-[#8a7a68]" />
+            </button>
+          </motion.div>
+        )}
       </motion.div>
     </motion.div>
   )
